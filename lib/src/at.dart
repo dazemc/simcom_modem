@@ -19,7 +19,7 @@ class At {
   final SerialTransport transport;
   final AsyncLock _lock = AsyncLock();
 
-  String _buffer = '';
+  final List<int> _buffer = <int>[];
   StreamSubscription<Uint8List>? _subscription;
   Completer<void>? _dataSignal;
 
@@ -45,7 +45,7 @@ class At {
     final subscription = _subscription;
     _subscription = null;
     if (subscription != null) unawaited(subscription.cancel());
-    _buffer = '';
+    _buffer.clear();
     _wakeWaiter();
     transport.close();
   }
@@ -64,20 +64,25 @@ class At {
 
   /// Send an AT [command] and wait for [back] to appear in the response.
   Future<String> sendAt(String command, String back, int timeoutSeconds) {
+    final expected = utf8.encode(back);
+    final error = utf8.encode('ERROR');
     return _exchange(
       command: command,
       timeoutSeconds: timeoutSeconds,
       isComplete: (buffer) =>
-          buffer.contains(back) ||
-          (back != 'ERROR' && buffer.contains('ERROR')),
+          _containsBytes(buffer, expected) ||
+          (back != 'ERROR' && _containsBytes(buffer, error)),
     );
   }
 
   /// Read from the modem without writing a command.
   Future<String> readUntil(String back, int timeoutSeconds) {
+    final expected = utf8.encode(back);
+    final error = utf8.encode('ERROR');
     return _exchange(
       timeoutSeconds: timeoutSeconds,
-      isComplete: (buffer) => buffer.contains(back) || buffer.contains('ERROR'),
+      isComplete: (buffer) =>
+          _containsBytes(buffer, expected) || _containsBytes(buffer, error),
       timeoutMessage: "ERROR: Timeout while waiting for '$back'",
     );
   }
@@ -95,17 +100,20 @@ class At {
 
   /// Send an arbitrary AT command and return the raw response.
   Future<String> sendRaw(String command, {int timeoutSeconds = 10}) {
+    final ok = utf8.encode('OK');
+    final error = utf8.encode('ERROR');
     return _exchange(
       command: command,
       timeoutSeconds: timeoutSeconds,
-      isComplete: (buffer) => buffer.contains('OK') || buffer.contains('ERROR'),
+      isComplete: (buffer) =>
+          _containsBytes(buffer, ok) || _containsBytes(buffer, error),
     );
   }
 
   Future<String> _exchange({
     String? command,
     required int timeoutSeconds,
-    required bool Function(String buffer) isComplete,
+    required bool Function(List<int> buffer) isComplete,
     String? timeoutMessage,
   }) {
     return _lock.synchronized(() async {
@@ -117,7 +125,7 @@ class At {
         final stopwatch = Stopwatch()..start();
         while (true) {
           if (isComplete(_buffer)) {
-            final response = _buffer;
+            final response = utf8.decode(_buffer, allowMalformed: true);
             _clearBuffer();
             return response;
           }
@@ -132,14 +140,14 @@ class At {
           await _waitForData(remaining);
         }
       } on Object catch (error) {
-        _buffer = '';
+        _buffer.clear();
         return "ERROR: $error";
       }
     });
   }
 
   void _onData(Uint8List data) {
-    _buffer += utf8.decode(data, allowMalformed: true);
+    _buffer.addAll(data);
     _wakeWaiter();
   }
 
@@ -171,6 +179,22 @@ class At {
     } on Object {
       // The port may already be closed; clearing the local buffer is enough.
     }
-    _buffer = '';
+    _buffer.clear();
+  }
+
+  static bool _containsBytes(List<int> buffer, List<int> needle) {
+    if (needle.isEmpty) return true;
+    final last = buffer.length - needle.length;
+    for (var i = 0; i <= last; i++) {
+      var matches = true;
+      for (var j = 0; j < needle.length; j++) {
+        if (buffer[i + j] != needle[j]) {
+          matches = false;
+          break;
+        }
+      }
+      if (matches) return true;
+    }
+    return false;
   }
 }

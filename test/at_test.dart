@@ -27,6 +27,16 @@ void main() {
     expect(await response, contains('OK'));
   });
 
+  test('finds a terminator split across byte chunks', () async {
+    final response = at.readUntil('OK', 1);
+    await Future<void>.delayed(Duration.zero);
+    transport.emit('\r\n+CSQ: 20,99\r\nO');
+    await Future<void>.delayed(Duration.zero);
+    transport.emit('K\r\n');
+
+    expect(await response, contains('OK'));
+  });
+
   test('sendAt returns the response that contains the token', () async {
     transport.onCommand = (command, transport) {
       if (command.startsWith('AT+TEST')) {
