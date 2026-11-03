@@ -5,7 +5,7 @@
 
 ## 0.2.0
 
-- Renamed the package from `pi7600` to `simcom_modem`.
+- Renamed the package to `simcom_modem`.
 - Renamed the repository to `simcom_modem`.
 - The public entrypoint is now `package:simcom_modem/simcom_modem.dart`.
 
