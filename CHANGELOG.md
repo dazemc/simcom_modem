@@ -1,3 +1,8 @@
+## 0.3.0
+
+- Add `GpsFix` parsing for `+CGPSINFO`.
+- Add `Gps.getFix()` and Google Maps URLs for valid coordinates.
+
 ## 0.2.0
 
 - Renamed the package from `pi7600` to `simcom_modem`.

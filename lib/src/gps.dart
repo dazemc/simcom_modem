@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'at.dart';
+import 'gps_fix.dart';
 import 'settings.dart';
 
 /// Query and manage the modem GPS session.
@@ -37,6 +38,11 @@ class Gps {
     if (At.isError(response)) return false;
     isRunning = false;
     return true;
+  }
+
+  /// Return the parsed GPS fix, or `null` when there is no fix.
+  Future<GpsFix?> getFix() async {
+    return parseGpsInfo(await getGpsPosition());
   }
 
   /// Return the raw `+CGPSINFO` response, or `null` on failure.

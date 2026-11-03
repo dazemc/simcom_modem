@@ -166,17 +166,20 @@ final messages = parser.parsePdu(rawModemResponse);
 ```dart
 final gps = Gps(modem);
 
-final position = await gps.getGpsPosition();
-if (position == null) {
-  print('GPS is unavailable');
+final fix = await gps.getFix();
+if (fix == null) {
+  print('GPS is unavailable or has no fix');
 } else {
-  print(position);
+  print('${fix.latitude}, ${fix.longitude}');
+  print(fix.googleMapsUrl);
 }
 ```
 
 `getGpsPosition()` checks the current GPS session, starts it when necessary,
-and stops it if the query fails. A modem with an active session but no satellite
-fix returns `GPS is active but no signal was found`.
+and stops it if the query fails. It returns the raw `+CGPSINFO` response for
+diagnostics; `getFix()` parses it into a `GpsFix` with latitude, longitude,
+altitude, speed, course, and a Google Maps URL. A modem with an active session
+but no satellite fix has no `GpsFix`.
 
 ### Phone control
 

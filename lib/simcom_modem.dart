@@ -8,6 +8,7 @@ library;
 
 export 'src/at.dart';
 export 'src/gps.dart';
+export 'src/gps_fix.dart';
 export 'src/pdu.dart';
 export 'src/phone.dart';
 export 'src/serial_transport.dart';
