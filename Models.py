@@ -1,21 +1,20 @@
-from typing import Optional
 from pydantic import BaseModel, ConfigDict
 
 
 class Messages(BaseModel):
-    id: Optional[int] = None
-    message_index: Optional[str] = None
+    id: int | None = None
+    message_index: str | None = None
     message_type: str
-    message_originating_address: Optional[str] = None
-    message_destination_address: Optional[str] = None
+    message_originating_address: str | None = None
+    message_destination_address: str | None = None
     message_date: str
     message_time: str
     message_contents: str
-    partial_key: Optional[str] = None
-    partial_count: Optional[int] = None
-    partial_index: Optional[int] = None
+    partial_key: str | None = None
+    partial_count: int | None = None
+    partial_index: int | None = None
     is_partial: bool
     in_sim_memory: bool
-    is_sent: Optional[bool] = None
+    is_sent: bool | None = None
 
     model_config = ConfigDict(from_attributes=True)

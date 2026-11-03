@@ -1,15 +1,15 @@
-from pi7600.Settings import *
-from .ParserSMS import *
+from .Globals import SMS_SEND_TIMEOUT, TIMEOUT
+from .Models import Messages
+from .ParserSMS import Parser
+from .Settings import Settings
 
 
 class SMS:
-    """
-    Initialize the SMS class.
-    """
+    """Send, receive, and delete SMS messages through the modem."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.settings = Settings()
-        self.parser = Parser()
+        self.parser = Parser(timezone=self.settings.timezone)
 
     def __getattr__(self, name):
         try:
@@ -17,76 +17,60 @@ class SMS:
         except AttributeError:
             raise AttributeError(
                 f"'{type(self).__name__}' object has no attribute '{name}'"
-            )
+            ) from None
 
-    async def receive_messages(self) -> list:
-        """
-        Sends SMS command to AT
-        :param message_type: str
-        :return: list<dict>
-        """
-        # self.set_data_mode(1)
-        answer = await self.send_at(f"AT+CMGL=4", "OK", TIMEOUT)
-        return self.parser.parse_pdu(answer)
-
-    def read_message(self, message_type: str) -> list:
-        """
-        Reads message from specified message type.
-        :param message_type: str
-        :return: list<dict>
-        """
+    async def receive_messages(self) -> list[Messages]:
+        """Read all messages from SIM storage in PDU mode."""
+        previous_mode = await self.get_data_mode()
+        if previous_mode is not True:
+            await self.set_data_mode(0)  # PDU mode
         try:
-            buffer = self.receive_messages()
-            return buffer
-        except Exception as e:
-            print("Error:", e)
-            if self.ser is not None:
-                self.ser.close()
+            answer = await self.send_at("AT+CMGL=4", "OK", TIMEOUT)
+            if self.at.is_error(answer):
+                print(f"Error reading messages: {answer}")
+                return []
+            return self.parser.parse_pdu(answer)
+        finally:
+            if previous_mode is False:
+                await self.set_data_mode(1)  # Restore text mode
 
-    def loop_for_messages(self, message_type: str) -> list:
+    async def read_message(self, message_type: str) -> list[Messages]:
         """
-        Starts a loop that reads message(s) from specified message type.
+        Read messages of the specified type.
         :param message_type: str
-        :return: str
+        :return: list<Messages>
         """
-        while True:
-            try:
-                buffer = self.receive_messages()
-                return buffer
-            except Exception as e:
-                print(f"Unhandled error: {e}")
-                if self.ser is not None:
-                    self.ser.close()
+        return await self.receive_messages()
 
     async def send_message(self, phone_number: str, text_message: str) -> bool:
-        if self.pdu_mode:
-            await self.set_data_mode(1)
-        answer = await self.send_at('AT+CMGS="' + phone_number + '"', ">", TIMEOUT)
-        if answer:
-            self.ser.write(text_message.encode())
-            self.ser.write(b"\x1a")
-            # 'OK' here means the message sent?
-            answer = await self.send_at("", "OK", SMS_SEND_TIMEOUT)
-            if answer:
-                print(f"Number: {phone_number}\nMessage: {text_message}\nMessage sent!")
-                await self.set_data_mode(0)
-                return True
-            else:
+        """Send a text message, restoring the previous modem mode afterwards."""
+        previous_mode = await self.get_data_mode()
+        await self.set_data_mode(1)  # Text mode is required for AT+CMGS
+        try:
+            answer = await self.send_at(f'AT+CMGS="{phone_number}"', ">", TIMEOUT)
+            if self.at.is_error(answer):
+                print(f"Error starting SMS send: {answer}")
+                return False
+
+            await self.write_data(text_message.encode() + b"\x1a")
+            answer = await self.read_until("OK", SMS_SEND_TIMEOUT)
+            if self.at.is_error(answer):
                 print(
                     f"Error sending message...\n"
                     f"phone_number: {phone_number}\n"
                     f"text_message: {text_message}\n"
                     f"Not sent!"
                 )
-                await self.set_data_mode(0)
                 return False
-        else:
-            print(f"error: {answer}")
-            await self.set_data_mode(0)
-            return False
+
+            print(f"Number: {phone_number}\nMessage: {text_message}\nMessage sent!")
+            return True
+        finally:
+            if previous_mode is True:
+                await self.set_data_mode(0)  # Restore PDU mode
 
     async def delete_message(self, msg_idx: int) -> dict:
-        """delete message by index
+        """Delete a message by its modem index.
 
         Args:
             msg_idx (int): message to delete
@@ -94,8 +78,7 @@ class SMS:
         Returns:
             dict: {"response": "Success" | False}
         """
-        resp = await self.send_at(f"AT+CMGD={msg_idx}", "OK", TIMEOUT)
-        if resp:
-            return {"response": "Success"}
-        else:
+        response = await self.send_at(f"AT+CMGD={msg_idx}", "OK", TIMEOUT)
+        if self.at.is_error(response):
             return {"response": False}
+        return {"response": "Success"}

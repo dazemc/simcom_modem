@@ -1,0 +1,9 @@
+target-version = "py313"
+line-length = 88
+
+[lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC", "RUF"]
+ignore = ["B008"]
+
+[lint.per-file-ignores]
+"firmware_tools/*" = ["E501", "F401", "F841", "E402"]

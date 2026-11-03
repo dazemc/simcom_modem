@@ -1,11 +1,12 @@
 from datetime import datetime, timedelta
-from .Models import Messages
+
 from smspdudecoder.easy import read_incoming_sms
-from .Settings import *
+
+from .Models import Messages
 
 
-def status(status):
-    match status:
+def status(value: str) -> str:
+    match value:
         case "0":
             return "REC UNREAD"
         case "1":
@@ -14,85 +15,91 @@ def status(status):
             return "STO UNSENT"
         case "3":
             return "STO SENT"
+        case _:
+            return "UNKNOWN"
 
 
 class Parser:
-    def __init__(self):
-        self.settings = Settings()
+    def __init__(self, timezone: int | None = None) -> None:
+        self.timezone = timezone
 
     def parse_sms(
         self,
         sms_buffer: str,
         pdu_mode: bool = False,
-    ) -> list:  # TODO: check for PDU and parse PDU. PDU is much more informative than text mode.
+    ) -> list[Messages]:
         """
-        Parses the modem sms buffer into a list of dictionaries
+        Parses the modem sms buffer into a list of messages.
         :param sms_buffer: str
-        :return: list<dict>
+        :return: list<Messages>
         """
-        if not pdu_mode:
-            try:
-                read_messages = sms_buffer[
-                    sms_buffer.find("+CMGL") : sms_buffer.rfind("\r\n\r\nOK\r\n")
-                ]
-                read_messages = read_messages.split("+CMGL: ")[1:]
-
-                message_list = []
-                for msg in read_messages:
-                    msg_header = msg[: msg.find("\r\n")].replace('"', "").split(",")
-                    msg_contents = msg[msg.find("\r\n") :][2:]
-                    msg_contents = (
-                        msg_contents[:-2]
-                        if msg_contents.endswith("\r\n")
-                        else msg_contents
-                    )
-                    msg_time = msg_header[5][:-3]
-                    raw_datetime = f"{msg_header[4]} {msg_time}"
-                    parsed_datetime = datetime.strptime(
-                        raw_datetime, "%y/%m/%d %H:%M:%S"
-                    )
-                    formatted_date = parsed_datetime.strftime("%Y-%m-%d")
-                    formatted_time = parsed_datetime.strftime("%H:%M:%S")
-                    message_list.append(
-                        {
-                            "message_index": msg_header[0],
-                            "message_type": msg_header[1],
-                            "message_originating_address": msg_header[2],
-                            "message_destination_address": msg_header[3],
-                            "message_date": formatted_date,
-                            "message_time": formatted_time,
-                            "message_contents": msg_contents,
-                        }
-                    )
-                    return message_list
-            except Exception as e:
-                print(
-                    f"ERROR: Parsing SMS: pdu_mode: {pdu_mode}, sms_buffer: {sms_buffer}\n{e}"
-                )
-
         if pdu_mode:
-            self.parse_pdu(sms_buffer)
+            return self.parse_pdu(sms_buffer)
 
-    def parse_pdu(self, pdu):
+        try:
+            read_messages = sms_buffer[
+                sms_buffer.find("+CMGL") : sms_buffer.rfind("\r\n\r\nOK\r\n")
+            ]
+            read_messages = read_messages.split("+CMGL: ")[1:]
+
+            message_list = []
+            for msg in read_messages:
+                msg_header = msg[: msg.find("\r\n")].replace('"', "").split(",")
+                msg_contents = msg[msg.find("\r\n") :][2:]
+                msg_contents = (
+                    msg_contents[:-2] if msg_contents.endswith("\r\n") else msg_contents
+                )
+                msg_time = msg_header[5][:-3]
+                raw_datetime = f"{msg_header[4]} {msg_time}"
+                parsed_datetime = datetime.strptime(raw_datetime, "%y/%m/%d %H:%M:%S")
+                formatted_date = parsed_datetime.strftime("%Y-%m-%d")
+                formatted_time = parsed_datetime.strftime("%H:%M:%S")
+                message_list.append(
+                    Messages(
+                        message_index=msg_header[0],
+                        message_type=msg_header[1],
+                        message_originating_address=msg_header[2],
+                        message_destination_address=msg_header[3],
+                        message_date=formatted_date,
+                        message_time=formatted_time,
+                        message_contents=msg_contents,
+                        is_partial=False,
+                        in_sim_memory=True,
+                    )
+                )
+            return message_list
+        except Exception as e:
+            print(
+                f"ERROR: Parsing SMS: pdu_mode: {pdu_mode}, "
+                f"sms_buffer: {sms_buffer}\n{e}"
+            )
+            return []
+
+    def parse_pdu(self, pdu: str) -> list[Messages]:
+        if not pdu:
+            return []
+
         pdu_split = pdu.split("+CMGL: ")[1:]
-        pdu_split = [x.split("\n")[:-1] for x in pdu_split]
-        if len(pdu_split) == 0:
-            return
-        msg_head = pdu_split[0][0].split(",")
+        if not pdu_split:
+            return []
+
         msgs = []
-        for pdu in pdu_split:
-            msg_head = pdu[0].split(",")
+        for entry in pdu_split:
+            lines = entry.split("\n")
+            if len(lines) < 2:
+                continue
+
+            msg_head = lines[0].split(",")
             msg_idx = msg_head[0]
             msg_status = status(msg_head[1])
-            msg_len = msg_head[3]
-            pdu_encoded = pdu[1]
+            pdu_encoded = lines[1].strip()
             pdu_decoded = read_incoming_sms(pdu_encoded)
             msg_contents = pdu_decoded["content"]
             fulldate = pdu_decoded["date"].replace(tzinfo=None)
-            timezone_offset = timedelta(hours=self.settings.timezone)
+            timezone_offset = timedelta(hours=self.timezone or 0)
             fulldate += timezone_offset
             msg_sender = pdu_decoded["sender"]
-            is_partial = bool(type(pdu_decoded["partial"]) == dict)
+            is_partial = isinstance(pdu_decoded.get("partial"), dict)
             partial_key = None
             partial_count = None
             partial_index = None
@@ -104,20 +111,18 @@ class Parser:
             formatted_date = fulldate.strftime("%Y-%m-%d")
             formatted_time = fulldate.strftime("%H:%M:%S")
             msgs.append(
-                {
-                    "message_index": msg_idx,
-                    "message_type": msg_status,
-                    "message_length": msg_len,
-                    "message_contents": msg_contents,
-                    "message_originating_address": msg_sender,
-                    "message_date": formatted_date,
-                    "message_time": formatted_time,
-                    "partial_key": partial_key,
-                    "partial_count": partial_count,
-                    "partial_index": partial_index,
-                    "is_partial": bool(is_partial),
-                    "in_sim_memory": True,
-                    "pdu_decoded": pdu_decoded,
-                }
+                Messages(
+                    message_index=msg_idx,
+                    message_type=msg_status,
+                    message_contents=msg_contents,
+                    message_originating_address=msg_sender,
+                    message_date=formatted_date,
+                    message_time=formatted_time,
+                    partial_key=partial_key,
+                    partial_count=partial_count,
+                    partial_index=partial_index,
+                    is_partial=is_partial,
+                    in_sim_memory=True,
+                )
             )
-        return [Messages(**msg) for msg in msgs]
+        return msgs

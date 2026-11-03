@@ -1,16 +1,16 @@
 import asyncio
-from pi7600.Settings import *
+
+from .Globals import GPS_RETRY, GPS_TIMEOUT, TIMEOUT
+from .Settings import Settings
 
 
 class GPS:
-    """
-    Initialize the GPS class.
-    """
+    """Query and manage the modem GPS session."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.settings = Settings()
         self.loc = ""
-        self.is_running = False  # Initialized to False; actual status will be checked asynchronously later
+        self.is_running = False
 
     def __getattr__(self, name):
         try:
@@ -18,11 +18,11 @@ class GPS:
         except AttributeError:
             raise AttributeError(
                 f"'{type(self).__name__}' object has no attribute '{name}'"
-            )
+            ) from None
 
-    async def session_check(self):
+    async def session_check(self) -> bool:
         check = await self.send_at("AT+CGPS?", "+CGPS", TIMEOUT)
-        self.is_running = True if "+CGPS: 1,1" in check else False
+        self.is_running = not self.at.is_error(check) and "+CGPS: 1,1" in check
         return self.is_running
 
     async def gps_session(self, start: bool) -> bool:
@@ -33,45 +33,47 @@ class GPS:
         """
         await self.session_check()
         if start:
+            if self.is_running:
+                return True
             print("Starting GPS session...")
-            if await self.send_at(
-                "AT+CGPS=0,1", "OK", GPS_TIMEOUT
-            ) and await self.send_at("AT+CGPS=1,1", "OK", GPS_TIMEOUT):
-                print("Started successfully")
-                await asyncio.sleep(2)
-                self.is_running = True
-                return True
-        else:
-            print("Closing GPS session...")
-            self.rec_buff = ""
-            if await self.send_at("AT+CGPS=0,1", "OK", GPS_TIMEOUT):
-                self.is_running = False
-                return True
-            else:
-                print("Error closing GPS, is it open?")
+            # Best-effort reset before starting the session.
+            await self.send_at("AT+CGPS=0,1", "OK", GPS_TIMEOUT)
+            response = await self.send_at("AT+CGPS=1,1", "OK", GPS_TIMEOUT)
+            if self.at.is_error(response):
+                print(f"Unable to start GPS session: {response}")
                 return False
+            await asyncio.sleep(2)
+            self.is_running = True
+            print("Started successfully")
+            return True
 
-    async def get_gps_position(self, retries: int = GPS_RETRY) -> str | bool:
-        await self.session_check()  # Ensure session status is checked asynchronously
-        if self.is_running:
-            for _ in range(retries):
-                answer = await self.send_at("AT+CGPSINFO", "+CGPSINFO: ", GPS_TIMEOUT)
-                if answer and ",,,,,," not in answer:
-                    return answer
-                elif ",,,,,," in answer:
-                    return "GPS is active but no signal was found"
-                else:
-                    print("Error accessing GPS, attempting to close session")
-                    if not await self.gps_session(False):  # Await the async method
-                        print("GPS was not found or did not close correctly")
-                    else:
-                        print("Done")
-                    return False
-            print("Retry limit reached; GPS signal not found...")
+        print("Closing GPS session...")
+        response = await self.send_at("AT+CGPS=0,1", "OK", GPS_TIMEOUT)
+        if self.at.is_error(response):
+            print("Error closing GPS, is it open?")
             return False
-        else:
+        self.is_running = False
+        return True
+
+    async def get_gps_position(self, retries: int = GPS_RETRY) -> str | None:
+        """Return the raw ``+CGPSINFO`` response, or ``None`` on failure."""
+        if not await self.session_check():
             print(
-                "Attempting to get location without an open GPS session, trying to open one now..."
+                "Attempting to get location without an open GPS session, "
+                "trying to open one now..."
             )
-            await self.gps_session(True)  # Await the async method
-            return await self.get_gps_position()  # Await the async recursive call
+            if not await self.gps_session(True):
+                return None
+
+        for _ in range(max(1, retries)):
+            answer = await self.send_at("AT+CGPSINFO", "+CGPSINFO: ", GPS_TIMEOUT)
+            if self.at.is_error(answer):
+                print("Error accessing GPS, attempting to close session")
+                await self.gps_session(False)
+                return None
+            if ",,,,,," in answer:
+                return "GPS is active but no signal was found"
+            return answer
+
+        print("Retry limit reached; GPS signal not found...")
+        return None
