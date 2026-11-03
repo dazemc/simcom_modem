@@ -1,7 +1,7 @@
-# pi7600
+# simcom_modem
 
-Dart library for SIM7600-series 4G modems (for example the Waveshare
-SIM7600G-H). It provides:
+Dart library for SIMCom AT modems, tested with the SIM7600-series 4G modules
+(for example the Waveshare SIM7600G-H). It provides:
 
 - `At` — serialized AT command client with timeout and error handling.
 - `SerialTransport` / `LibSerialPortTransport` — stream-based serial I/O through
@@ -39,12 +39,12 @@ submodule at `pi7600/`):
 
 ```yaml
 dependencies:
-  pi7600:
+  simcom_modem:
     path: ../pi7600
 ```
 
 ```dart
-import 'package:pi7600/pi7600.dart';
+import 'package:simcom_modem/simcom_modem.dart';
 
 Future<void> main() async {
   final transport = LibSerialPortTransport(
@@ -81,12 +81,12 @@ dart pub get
 dart test
 ```
 
-The tests use `FakeTransport` from `package:pi7600/testing.dart` and do not
+The tests use `FakeTransport` from `package:simcom_modem/testing.dart` and do not
 require a modem:
 
 ```dart
-import 'package:pi7600/pi7600.dart';
-import 'package:pi7600/testing.dart';
+import 'package:simcom_modem/simcom_modem.dart';
+import 'package:simcom_modem/testing.dart';
 
 final transport = FakeTransport();
 final at = At(

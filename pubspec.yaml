@@ -1,8 +1,8 @@
-name: pi7600
+name: simcom_modem
 description: >-
-  SIM7600 modem library for Dart: AT commands, serial transport, SMS/PDU, GPS,
+  SIMCom modem library for Dart: AT commands, serial transport, SMS/PDU, GPS,
   and phone control.
-version: 0.1.0
+version: 0.2.0
 repository: https://github.com/dazemc/pi7600-lib
 
 environment:

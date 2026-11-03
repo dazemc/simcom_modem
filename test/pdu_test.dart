@@ -1,4 +1,4 @@
-import 'package:pi7600/pi7600.dart';
+import 'package:simcom_modem/simcom_modem.dart';
 import 'package:test/test.dart';
 
 void main() {

@@ -3,7 +3,7 @@
 /// Import this from test code only:
 ///
 /// ```dart
-/// import 'package:pi7600/testing.dart';
+/// import 'package:simcom_modem/testing.dart';
 /// ```
 library;
 
