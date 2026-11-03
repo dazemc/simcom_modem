@@ -7,7 +7,7 @@ control.
 
 The library has no dependency on Serverpod, Flutter, or a particular
 application. It runs on the Dart VM on Linux and is used by the
-[Pi7600 service](https://github.com/dazemc/pi7600).
+[SIMCom API service](https://github.com/dazemc/simcom_api).
 
 ## Features
 

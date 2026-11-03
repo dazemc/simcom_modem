@@ -2,8 +2,8 @@
 ///
 /// The library covers AT commands, stream-based serial transport, modem
 /// settings, SMS/PDU handling, GPS, and phone control. It has no dependency on
-/// the Pi7600 service and can be used by any Dart application that talks to a
-/// SIMCom modem.
+/// the SIMCom API service and can be used by any Dart application that talks
+/// to a SIMCom modem.
 library;
 
 export 'src/at.dart';
