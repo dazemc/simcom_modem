@@ -35,12 +35,12 @@ export LIBSERIALPORT_PATH=libserialport.so.0
 ## Usage
 
 Add the package as a path dependency (the Pi7600 service includes it as a git
-submodule at `pi7600/`):
+submodule at `simcom_modem/`):
 
 ```yaml
 dependencies:
   simcom_modem:
-    path: ../pi7600
+    path: ../simcom_modem
 ```
 
 ```dart

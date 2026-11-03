@@ -3,7 +3,7 @@ description: >-
   SIMCom modem library for Dart: AT commands, serial transport, SMS/PDU, GPS,
   and phone control.
 version: 0.2.0
-repository: https://github.com/dazemc/pi7600-lib
+repository: https://github.com/dazemc/simcom_modem
 
 environment:
   sdk: '^3.12.2'
