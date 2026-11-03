@@ -7,10 +7,10 @@ import 'async_lock.dart';
 
 /// AT command client for SIM7600-series modems.
 ///
-/// All access to the underlying serial port is serialized through [AsyncLock],
-/// matching the behavior of the original Python library. Incoming bytes are
-/// consumed from a subscription to [SerialTransport.received] rather than
-/// polling the port, so responses wake the pending command immediately.
+/// All access to the underlying serial port is serialized through [AsyncLock].
+/// Incoming bytes are consumed from a subscription to
+/// [SerialTransport.received] rather than polling the port, so responses wake
+/// the pending command immediately.
 class At {
   At({required this.com, required this.baudRate, required this.transport});
 

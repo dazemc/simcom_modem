@@ -374,8 +374,7 @@ DateTime _decodeTimestamp(List<int> bytes) {
   final local = DateTime.utc(fullYear, month, day, hour, minute, second);
 
   // The service-centre timestamp is local time with a BCD quarter-hour offset
-  // in the last octet. Convert it to UTC, matching smspdudecoder's
-  // `Date.decode` used by the Python service. [SmsParser] then applies the
+  // in the last octet. Convert it to UTC here; [SmsParser] then applies the
   // modem timezone.
   final swapped = ((bytes[6] & 0x0F) << 4) | ((bytes[6] >> 4) & 0x0F);
   final negative = (swapped & 0x80) != 0;
