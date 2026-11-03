@@ -1,1 +1,8 @@
+.dart_tool/
+build/
+pubspec.lock
+
+# Legacy Python leftovers
 __pycache__/
+*.pyc
+.venv/
